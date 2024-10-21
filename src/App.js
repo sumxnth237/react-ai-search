@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import './App.css';
 import { handlePrompt } from './chatbotLogic';
 import ItemDetails from './ItemDetails';
+import WeeklyCalendar from './WeeklyCalendar'; // Import the WeeklyCalendar component
 
 function App() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false); // State to control calendar visibility
 
   const sendMessage = async () => {
     if (input.trim() === '') return;
@@ -17,6 +19,14 @@ function App() {
       const highestSimilarityItem = response.items.length > 0 
         ? response.items.reduce((prev, current) => (prev.similarity > current.similarity) ? prev : current)
         : null;
+
+      // Check if the response includes a request to show the calendar
+      if (input.toLowerCase().includes("calendar")) {
+        setShowCalendar(true); // Show the calendar
+      } else {
+        setShowCalendar(false); // Hide the calendar if the user input doesn't ask for it
+      }
+
       setMessages(prev => [...prev, {
         text: response.message,
         sender: 'bot',
@@ -69,6 +79,8 @@ function App() {
       {selectedItem && (
         <ItemDetails item={selectedItem} onClose={closeItemDetails} />
       )}
+      {/* Conditionally render WeeklyCalendar based on showCalendar state */}
+      {showCalendar && <WeeklyCalendar />}
     </div>
   );
 }

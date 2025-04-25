@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './App.css';
 import { handlePrompt } from './chatbotLogic';
-import ItemDetails from './ItemDetails';
+import ItemDetails from './itemdetails';
 
 function App() {
   const [input, setInput] = useState('');
@@ -38,7 +38,7 @@ function App() {
 
   return (
     <div className="App">
-      <h1 className="app-title">Your Personalized Assistant</h1>
+      <h1 className="app-title">ARVO: D Personal Assistant</h1>
       <div className="chat-container">
         <div className="messages">
           {messages.map((message, index) => (

@@ -62,38 +62,51 @@ async function extractAttributes(prompt) {
     const response = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
       {
-        model: 'mixtral-8x7b-32768',
+        model: 'llama3-8b-8192',
         messages: [
-          { role: 'system', content: 'You are an AI trained to extract attributes from text. Please extract relevant attributes such as color, size, type, material, condition, distance, and any other relevant features. The database has 5 collections: events, items, jobs, services, and shops; return these keywords too if present in the query. Return the result as a JSON object. If an attribute is not present, omit it from the response.' },
-          { role: 'user', content: prompt }
+          {
+            role: 'system',
+            content:
+              'You are an AI trained to extract attributes from text. Please extract relevant attributes such as color, size, type, material, condition, distance, and any other relevant features. The database has 5 collections: events, items, jobs, services, and shops; return these keywords too if present in the query. Return the result as a JSON object. If an attribute is not present, omit it from the response.',
+          },
+          { role: 'user', content: prompt },
         ],
-        max_tokens: 150
+        max_tokens: 150,
       },
       {
         headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json',
+        },
       }
     );
 
-    const content = response.data.choices[0].message.content;
+    let content = response.data.choices[0].message.content.trim();
+
+    // Strip markdown and prefix like "Here is your data:"
+    content = content.replace(/```(json)?/g, '').trim();
+    content = content.replace(/^Here[^:{]*:?/, '').trim();
+
+    // Find where the last closing brace is, in case there's extra text
     const jsonEndIndex = content.lastIndexOf('}');
-    const cleanedContent = content.substring(0, jsonEndIndex + 1);
-    
+    if (jsonEndIndex !== -1) {
+      content = content.substring(0, jsonEndIndex + 1);
+    }
+
+    // Try parsing clean content
     try {
-      return JSON.parse(cleanedContent);
+      return JSON.parse(content);
     } catch (parseError) {
       console.error('Error parsing JSON:', parseError);
 
-      // Manual extraction of key-value pairs in case JSON parsing fails
+      // Fallback: manually extract key-value pairs
       const extractedAttributes = {};
-      const pairs = cleanedContent.match(/(\w+):\s*([^,\n]+)/g);
+      const pairs = content.match(/(\w+):\s*([^,\n]+)/g);
       if (pairs) {
         pairs.forEach(pair => {
           const [key, value] = pair.split(':').map(s => s.trim());
           if (value !== 'null' && value !== '') {
-            extractedAttributes[key] = value.replace(/"/g, '');
+            extractedAttributes[key] = value.replace(/["']/g, '');
           }
         });
       }
@@ -186,11 +199,11 @@ async function processWithGroq(prompt, attributes, matchingItems) {
     const response = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions', 
       {
-        model: 'mixtral-8x7b-32768',
+        model: 'llama3-8b-8192',
         messages: [
           { role: 'system', content: 'You are a helpful assistant. Provide detailed information based on the matching items from the database, including distance information when available.' },
           { role: 'user', content: `Prompt: ${prompt}\nAttributes: ${JSON.stringify(attributes)}\nHighest Similarity Item: ${JSON.stringify(highestSimilarityItem)}` },
-          { role: 'user', content: 'Please provide a good response based on the matching items from our database. Tell it in a human readable manner and not in the form of key:value pairs in the way it is stored by computers. Also leave out similarity because that\'s for computer to understand and not for humans to know. Tell detailed information about the highest similarity thing only, and add 1 extra thing if the similarity is very high, close to the highest, otherwise don\'t tell about it. Include distance information when available and mention the distance in kilometers everytime, not in longitudes/latitudes. Tell it short and sweet within 150 tokens.' }
+          { role: 'user', content: 'Please provide a good response based on the matching items from our database. Tell it in a human readable manner and not in the form of key:value pairs in the way it is stored by computers. Also leave out similarity because that\'s for computer to understand and not for humans to know. Tell detailed information about the highest similarity thing only. Include distance information when available and mention the distance in kilometers everytime, not in longitudes/latitudes. Tell it short and sweet within 150 tokens.' }
         ],
         max_tokens: 150
       },
@@ -214,17 +227,27 @@ export async function handlePrompt(prompt) {
   console.log('Handling prompt:', prompt);
   const attributes = await extractAttributes(prompt);
   console.log('Extracted attributes:', attributes);
+
+  // Ensure the attributes are structured correctly before matching
   const matchingItems = await findMatchingItems(attributes);
   console.log('Matching items:', matchingItems.length);
-  
+
   // Get the highest similarity item
   const highestSimilarityItem = matchingItems.length > 0 ? matchingItems[0] : null;
   
+  // If no matches are found, provide a helpful response
+  if (!highestSimilarityItem) {
+    return {
+      message: "I'm sorry, but I couldn't find any exact matches in our database for your query. Could you please provide more details or rephrase your request?",
+      items: [],
+    };
+  }
+
   // Generate response based on the highest similarity item
   const groqResponse = await processWithGroq(prompt, attributes, [highestSimilarityItem]);
 
   return {
     message: groqResponse,
-    items: [highestSimilarityItem] // Only return the highest similarity item
+    items: [highestSimilarityItem], // Only return the highest similarity item
   };
 }

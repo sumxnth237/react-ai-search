@@ -289,7 +289,7 @@ async function findMatchingItems(attributes) {
           similarity = cosineSimilarity(attributesEmbedding, itemEmbedding);
           
           // Log high similarity matches for debugging
-          if (similarity > 0.5) {
+          if (similarity > 0.2) {
             console.log(`High similarity match (${similarity.toFixed(3)}) in ${category}:`, itemText);
           }
         } catch (error) {
@@ -327,7 +327,7 @@ async function findMatchingItems(attributes) {
         }
 
         // Lowered threshold for matches due to potential embedding differences
-        if (adjustedSimilarity > 0.6) { // Lower threshold to catch more potential matches
+        if (adjustedSimilarity > 0.3) { // Lower threshold to catch more potential matches
           matches.push({ 
             category, 
             item, 
